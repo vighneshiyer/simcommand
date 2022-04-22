@@ -8,7 +8,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import simapi.UARTCommands
 
 import java.io.{FileNotFoundException, IOException}
-
+/*
 class NeuromorphicProcessorCommandTester extends AnyFlatSpec with ChiselScalatestTester {
   behavior of "Neuromorphic Processor"
 
@@ -89,3 +89,5 @@ class NeuromorphicProcessorCommandTester extends AnyFlatSpec with ChiselScalates
     }
   }
 }
+
+ */

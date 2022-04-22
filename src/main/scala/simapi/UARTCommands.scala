@@ -2,6 +2,7 @@ package simapi
 
 import chisel3._
 import chisel3.experimental.{DataMirror, Direction}
+import Command._
 
 class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
   assert(DataMirror.directionOf(uartIn) == Direction.Input)
@@ -23,36 +24,57 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
     await ClockCycles(dut.clock, bitDelay)
     print("Sent byte {byte}")
   */
+  /*
   def sendReset(bitDelay: Int): Command[Unit] = {
     // Keep idle high for an entire symbol period to reset any downstream receivers
     Poke(uartIn, 1.B, () =>
       Step(bitDelay * (bitsPerSymbol + 1), () => Return(()))
     )
   }
+   */
+
+  def sendReset(bitDelay: Int): Command[Unit] = {
+    // Keep idle high for an entire symbol period to reset any downstream receivers
+    for {
+      _ <- poke(uartIn, 1.B)
+      _ <- step(bitDelay * (bitsPerSymbol + 1))
+    } yield ()
+  }
 
   def sendBit(bit: Int, bitDelay: Int): Command[Unit] = {
-    Poke(uartIn, bit.B, () => {
-      Step(bitDelay, () =>
-        Return(())
-      )
-    })
+    for {
+      _ <- poke(uartIn, bit.B)
+      _ <- step(bitDelay)
+    } yield ()
+  }
+
+  def sendByte(byte: Int, bitDelay: Int): Command[Unit] = {
+    for {
+      _ <- sendBit(0, bitDelay)
+      _ <- concat((0 until 8).map(i => sendBit((byte >> i) & 0x1, bitDelay)))
+      _ <- sendBit(1, bitDelay)
+    } yield ()
+    // sendByteInner(bitDelay, ((byte & 0xff) << 1) | (1 << (bitsPerSymbol-1)), bitsPerSymbol)
   }
 
   // @tailrec - NOT tail recursive - will blow up eventually, what is trampolining?
+  /*
   private def sendByteInner(bitDelay: Int, byte: Int, bitsToGo: Int): Command[Unit] = {
     if (bitsToGo == 0)
       Return(())
     else
       Concat(sendBit(byte & 0x1, bitDelay), (_: Unit) => sendByteInner(bitDelay, byte >> 1, bitsToGo - 1))
   }
+   */
 
-  def sendByte(bitDelay: Int, byte: Int): Command[Unit] = {
-    sendByteInner(bitDelay, ((byte & 0xff) << 1) | (1 << (bitsPerSymbol-1)), bitsPerSymbol)
-  }
 
-  def sendBytes(bitDelay: Int, bytes: Seq[Int]): Command[Unit] = {
-    val cmds: Seq[Unit => Command[Unit]] = bytes.map(b => (_: Unit) => sendByte(bitDelay, b))
-    Command.combine(cmds, ())
+  def sendBytes(bytes: Seq[Int], bitDelay: Int): Command[Unit] = {
+    val cmds = bytes.map(b => sendByte(b, bitDelay))
+    concat(cmds)
+    //val cmds: Seq[Unit => Command[Unit]] = bytes.map(b => (_: Unit) => sendByte(bitDelay, b))
+    //Command.combine(cmds, ())
+    //val cmds1 = bytes.map(sendByte(bitDelay, _))
+    //Command.combine(cmds)
     /*
     if (bytes.isEmpty)
       Return(Unit)
@@ -81,6 +103,57 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
     print("Received {byte}")
     return byte
    */
+
+  def receiveBit(bitDelay: Int): Command[Int] = {
+    // Assuming that a start bit has already been seen and current time is at the midpoint of the start bit
+    for {
+      _ <- step(bitDelay)
+      b <- peek(uartOut)
+    } yield {println(s"[receiveBit] returning $b"); b.litValue.toInt}
+  }
+
+  def receiveByte(bitDelay: Int): Command[Int] =
+    for {
+      // _ <- waitForValue(uartOut, 0)
+      txBit <- peek(uartOut)
+      ret <- {
+        if (txBit.litValue == 0) { // start bit is seen
+          for {
+            _ <- step(bitDelay / 2) // shift time to center-of-symbol
+            bits <- sequence((0 until 8).map(_ => receiveBit(bitDelay)))
+            _ <- step(bitDelay + bitDelay / 2) // advance time past 1/2 of last bit and stop bit
+          } yield bits.zipWithIndex.foldLeft(0) {
+            case (byte, (bit, index)) => byte | (bit << index)
+          }
+        } else { // UART line is still high, check on next cycle
+          for {
+            _ <- step(1)
+            b <- receiveByte(bitDelay)
+          } yield b
+        }
+      }
+    } yield ret
+
+  def receiveBytes(nBytes: Int, bitDelay: Int): Command[Seq[Int]] = {
+    val cmds = (0 until nBytes).map(_ => receiveByte(bitDelay))
+    sequence(cmds)
+  }
+
+  /*
+  // @tailrec - also not tail recursive
+  def receiveByte(bitDelay: Int): Command[Int] = {
+    Peek(uartOut, (txBit: Bool) =>
+      if (txBit.litValue == 0) {
+        Step(bitDelay / 2, () => // start bit is seen, shift time to center-of-symbol
+          Concat(receiveByteInner(bitDelay), (byte: Int) =>
+            Step(bitDelay + bitDelay / 2, () => // advance time past 1/2 of last bit and stop bit
+              Return(byte)
+            )
+          )
+        )
+      } else Step(1, () => receiveByte(bitDelay)) // UART line is still high, check on next cycle
+    )
+  }
 
   def receiveBytes(bitDelay: Int, nBytes: Int): Command[Seq[Int]] = {
     def receiveBytesInner(bitDelay: Int, nBytes: Int, seenSoFar: Seq[Int]): Command[Seq[Int]] = {
@@ -123,19 +196,11 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
       })
     }
   }
-
-  def receiveBit(bitDelay: Int): Command[Int] = {
-    // Assuming that a start bit has already been seen and current time is at the midpoint of the start bit
-    Step(bitDelay, () =>
-      Peek(uartOut, (b: Bool) => {
-        // println(s"[receiveBit] returning $b")
-        Return(b.litValue.toInt)
-      })
-    )
-  }
+   */
 }
 
 class UARTChecker(serialLine: chisel3.Bool) {
+  /*
   def check(bitDelay: Int, nSymbols: Int, symbolCount: Int = 0): Command[Unit] = {
     if (symbolCount == nSymbols) { // Saw all the expected symbols
       Return(())
@@ -145,7 +210,25 @@ class UARTChecker(serialLine: chisel3.Bool) {
       )
     }
   }
+   */
 
+  def checkBytes(nBytes: Int, bitDelay: Int): Command[Boolean] = {
+    val checks = Seq.fill(nBytes)(checkByte(bitDelay))
+    for {
+      checks <- sequence(checks)
+    } yield checks.forall(b => b)
+  }
+
+  def checkByte(bitDelay: Int): Command[Boolean] = {
+    for {
+      _ <- waitForValue(serialLine, 0.U) // Wait for the start bit
+      stableStartBit <- checkStable(serialLine, 0.U, bitDelay) // Start bit should be stable until symbol edge
+      _ <- step(bitDelay*8) // Let the 8 data bits pass
+      stableStopBit <- checkStable(serialLine, 1.U, bitDelay) // Stop bit should be stable until byte finished
+    } yield stableStartBit && stableStopBit
+  }
+
+  /*
   def checkSymbol(bitDelay: Int): Command[Unit] = {
     Peek(serialLine, (b: Bool) =>
       if (b.litToBoolean) Step(1, () => checkSymbol(bitDelay))
@@ -157,7 +240,9 @@ class UARTChecker(serialLine: chisel3.Bool) {
       }
     )
   }
+   */
 
+  /*
   def checkStable(cycles: Int, value: Int, cycCount: Int = 0): Command[Unit] = {
     if (cycCount == cycles) {
       Return(())
@@ -168,4 +253,5 @@ class UARTChecker(serialLine: chisel3.Bool) {
       })
     }
   }
+   */
 }

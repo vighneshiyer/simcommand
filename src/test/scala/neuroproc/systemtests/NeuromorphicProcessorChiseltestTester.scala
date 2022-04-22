@@ -62,6 +62,7 @@ class NeuromorphicProcessorChiseltestTester extends NeuromorphicProcessorTester 
             dut.clock.step()
           }
         }
+        rec.fork
 
         // Load an image into the accelerator ...
         println("Loading image into accelerator")

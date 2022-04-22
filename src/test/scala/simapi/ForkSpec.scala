@@ -6,7 +6,7 @@ import chiseltest.{ChiselScalatestTester, WriteVcdAnnotation}
 import chisel3.experimental.BundleLiterals._
 import org.scalatest.flatspec.AnyFlatSpec
 
-
+/*
 class ForkSpec extends AnyFlatSpec with ChiselScalatestTester {
   class ValidDelayLine extends Module {
     val a = IO(Input(Valid(UInt(10.W))))
@@ -69,3 +69,4 @@ class ForkSpec extends AnyFlatSpec with ChiselScalatestTester {
     }
   }
 }
+ */
