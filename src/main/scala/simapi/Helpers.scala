@@ -10,13 +10,15 @@ object Helpers {
     // TODO: return # of cycles this program waited
     for {
       peekedValue <- peek(signal)
-      next <- if (peekedValue.litValue != value.litValue) { // TODO: this won't work for record types
-        for {
-          _ <- step(1)
-          _ <- waitForValue(signal, value)
-        } yield ()
-      } else {
-        noop()
+      next <- {
+        if (peekedValue.litValue != value.litValue) { // TODO: this won't work for record types
+          for {
+            _ <- step(1)
+            _ <- waitForValue(signal, value)
+          } yield ()
+        } else {
+          noop()
+        }
       }
     } yield next
   }

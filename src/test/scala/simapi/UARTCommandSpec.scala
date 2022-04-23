@@ -2,7 +2,7 @@ package simapi
 
 import Command._
 import chisel3._
-import chiseltest.{ChiselScalatestTester, WriteVcdAnnotation}
+import chiseltest.{testableClock, ChiselScalatestTester, WriteVcdAnnotation}
 import chisel3.util.log2Ceil
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -38,12 +38,14 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
   "sendByte" should "produce the right sequence" in {
     val testByte = 0x55
     val bitDelay = 4
-    test(new UARTMock(Seq.empty, bitDelay)) { c =>
+    test(new UARTMock(Seq.empty, bitDelay)).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
+      c.clock.setTimeout(100)
       val cmds = new UARTCommands(uartIn=c.rx, uartOut=c.tx)
-      val chkr = new UARTChecker(c.tx)
+      val chkr = new UARTChecker(c.rx)
       val program = for {
-        checkerHandle <- fork(chkr.checkBytes(1, bitDelay), "checker")
-        _ <- cmds.sendByte(bitDelay, testByte)
+        _ <- cmds.sendReset(bitDelay)
+        checkerHandle <- fork(chkr.checkByte(bitDelay), "checker")
+        _ <- cmds.sendByte(testByte, bitDelay)
         _ <- step(bitDelay*5)
         j <- join(checkerHandle)
       } yield j
@@ -52,13 +54,12 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
     } // TODO: need a check on the sending itself that doesn't depend on receiveByte
   }
 
-  /*
   "receiveByte" should "receive a single byte sent by the UART" in {
     val testByte = Seq(0x55)
     val bitDelay = 4
     test(new UARTMock(testByte, bitDelay)) { c =>
       val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx)
-      val byteReceived = Command.run(cmds.receiveByte(bitDelay), c.clock, print=false)
+      val byteReceived = Command.unsafeRun(cmds.receiveByte(bitDelay), c.clock, print=false)
       assert(byteReceived == testByte.head)
     }
   }
@@ -68,7 +69,7 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
     val bitDelay = 4
     test(new UARTMock(testBytes, bitDelay)).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
       val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx)
-      val bytesReceived = Command.run(cmds.receiveBytes(bitDelay, testBytes.length), c.clock, print=false)
+      val bytesReceived = Command.unsafeRun(cmds.receiveBytes(bitDelay, testBytes.length), c.clock, print=false)
       assert(bytesReceived == testBytes)
     }
   }
@@ -81,26 +82,29 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
       val rxChk = new UARTChecker(c.rx)
       val txChk = new UARTChecker(c.tx)
 
-      val sender = Concat(cmds.sendReset(bitDelay), (_: Unit) => cmds.sendBytes(bitDelay, testBytes))
-      val receiver = cmds.receiveBytes(bitDelay, testBytes.length)
-      val rxChecker = rxChk.check(bitDelay, testBytes.length)
-      val txChecker = txChk.check(bitDelay, testBytes.length)
+      val sender = for {
+        _ <- cmds.sendReset(bitDelay)
+        _ <- cmds.sendBytes(testBytes, bitDelay)
+      } yield ()
+      val receiver = cmds.receiveBytes(testBytes.length, bitDelay)
+      val rxChecker = rxChk.checkBytes(testBytes.length, bitDelay)
+      val txChecker = txChk.checkBytes(testBytes.length, bitDelay)
 
-      val program =
-        Fork(sender, "sender", (h1: ThreadHandle[Unit]) =>
-          Fork(receiver, "receiver", (h2: ThreadHandle[Seq[Int]]) =>
-            Fork(rxChecker, "rxChecker", (h3: ThreadHandle[Unit]) =>
-              Fork(txChecker, "txChecker", (h4: ThreadHandle[Unit]) =>
-                Step(bitDelay*cmds.bitsPerSymbol*(testBytes.length + 1), () =>
-                  Join(h2, (retval: Seq[Int]) => Return(retval))
-                )
-              )
-            )
-          )
-        )
-      val bytesReceived = Command.run(program, c.clock, print=false)
-      assert(bytesReceived == testBytes)
+      val program = for {
+        senderThread <- fork(sender, "sender")
+        receiverThread <- fork(receiver, "receiver")
+        rxCheckerThread <- fork(rxChecker, "rxChecker")
+        txCheckerThread <- fork(txChecker, "txChecker")
+        _ <- step(bitDelay * cmds.bitsPerSymbol * (testBytes.length + 1))
+        receivedBytes <- join(receiverThread)
+        rxCheckStatus <- join(rxCheckerThread)
+        txCheckStatus <- join(txCheckerThread)
+        _ <- join(senderThread)
+      } yield (receivedBytes, rxCheckStatus && txCheckStatus)
+
+      val retval = Command.unsafeRun(program, c.clock, print=true)
+      assert(retval._1 == testBytes)
+      assert(retval._2 == true)
     }
   }
-   */
 }

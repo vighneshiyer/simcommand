@@ -209,7 +209,7 @@ object Command {
         retval match {
           case (ThreadData(Return(retval), _, _), 0, newTs) => // a is 'complete' so continue executing next
             //debug(cfg, thread, time, s"[Cont] a is complete, executing next")
-            runUntilSync(thread.copy(cmd=next(retval)), time, cfg, newTs, threadIdGen, retvals)
+            runUntilSync(thread.copy(cmd=next(retval)), time, cfg, newTs, threadIdGen, retvals) // TODO: recursive thread spawning won't work without appending newThreads to newTs
           case (ThreadData(c: Command[_], _, _), cycles, newTs) => // a has hit a step so we should save next in a new Concat
             //debug(cfg, thread, time, s"[Cont] a is not complete, saving pointer at $c")
             (thread.copy(cmd=Cont(c, next)), cycles, newTs)

@@ -111,7 +111,7 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
     for {
       _ <- step(bitDelay)
       b <- peek(uartOut)
-    } yield {println(s"[receiveBit] returning $b"); b.litValue.toInt}
+    } yield {/*println(s"[receiveBit] returning $b");*/ b.litValue.toInt}
   }
 
   def receiveByte(bitDelay: Int): Command[Int] =
