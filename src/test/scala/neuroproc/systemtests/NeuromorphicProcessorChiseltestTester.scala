@@ -7,8 +7,12 @@ import neuroproc._
 class NeuromorphicProcessorChiseltestTester extends NeuromorphicProcessorTester {
 
   it should "process an image" taggedAs (SlowTest) in {
+    val startElab = System.nanoTime()
     test(new NeuromorphicProcessor())
-      .withAnnotations(Seq(VerilatorBackendAnnotation, WriteVcdAnnotation)) { dut =>
+      .withAnnotations(Seq(VerilatorBackendAnnotation)) { dut =>
+        println(s"Took ${(System.nanoTime() - startElab) / 1e9d}s to elaborate, compile and create simulation")
+        val startTest = System.nanoTime()
+        var cycles = 1L // don't want to spawn a new thread to count cycles
         dut.clock.setTimeout(FREQ)
 
         def receiveByte(byte: UInt): Unit = {
@@ -88,6 +92,10 @@ class NeuromorphicProcessorChiseltestTester extends NeuromorphicProcessorTester 
 
         assert(spikes.length == results.length, "number of spikes does not match expected")
         assert(spikes.zip(results).map(x => x._1 == x._2).reduce(_ && _), "spikes do not match expected")
+
+        val deltaSeconds = (System.nanoTime() - startTest) / 1e9d
+        println(s"Took ${deltaSeconds}s to run test with manual threading and using the chiseltest interface with the NoThreadingAnnotation")
+        // println(s"Executed $cycles cycles at an average frequency of ${cycles / deltaSeconds} Hz")
       }
   }
 }

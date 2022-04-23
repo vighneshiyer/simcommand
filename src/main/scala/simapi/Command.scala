@@ -95,8 +95,9 @@ object Command {
     Join(handle)
   }
 
-
   // Runtime
+  case class Result[R](retval: R, cycles: Int, threadsSpawned: Int)
+
   private class ThreadIdGenerator {
     var count = 0
     def getNewThreadId: Int = {
@@ -104,11 +105,11 @@ object Command {
       count
     }
   }
-  case class ThreadData(cmd: Command[_], name: String, id: Int)
-  case class InterpreterCfg(print: Boolean)
-  case class EC(clock: Clock, threads: Seq[ThreadData])
+  private case class ThreadData(cmd: Command[_], name: String, id: Int)
+  private case class InterpreterCfg(print: Boolean)
+  private case class EC(clock: Clock, threads: Seq[ThreadData])
 
-  def unsafeRun[R](cmd: Command[R], clock: Clock, print: Boolean): R = {
+  def unsafeRun[R](cmd: Command[R], clock: Clock, print: Boolean): Result[R] = {
     runInner(cmd, clock, print, new ThreadIdGenerator())
   }
 
@@ -123,7 +124,7 @@ object Command {
     if (cfg.print) println(s"[$time] [${thread.name} (${thread.id})]: $message")
   }
 
-  private def runInner[R](cmd: Command[R], clock: Clock, print: Boolean, threadIdGen: ThreadIdGenerator): R = {
+  private def runInner[R](cmd: Command[R], clock: Clock, print: Boolean, threadIdGen: ThreadIdGenerator): Result[R] = {
     val cfg = InterpreterCfg(print)
     var time = 0
     var ec = EC(clock, Seq(ThreadData(cmd, "MAIN", 0)))
@@ -154,7 +155,7 @@ object Command {
       if (done.isDefined) {
         debug(cfg, ec.threads.head, time, s"Main thread returned at time $time with value ${done.get}")
         if (ec.threads.length > 1) debug(cfg, ec.threads.head, time, s"[FISHY] Main thread returning while child threads ${ec.threads.tail} aren't finished!")
-        return done.get.asInstanceOf[R]
+        return Result(done.get.asInstanceOf[R], time, retVals.keys.size)
       }
 
       // Are there any threads waiting on a join and we have data ready for it

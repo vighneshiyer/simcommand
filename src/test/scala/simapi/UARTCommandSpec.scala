@@ -49,8 +49,8 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
         _ <- step(bitDelay*5)
         j <- join(checkerHandle)
       } yield j
-      val retval = Command.unsafeRun(program, c.clock, print=false)
-      assert(retval) // This only checks that the start and stop bits are stable and full
+      val result = Command.unsafeRun(program, c.clock, print=false)
+      assert(result.retval) // This only checks that the start and stop bits are stable and full
     } // TODO: need a check on the sending itself that doesn't depend on receiveByte
   }
 
@@ -59,8 +59,8 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
     val bitDelay = 4
     test(new UARTMock(testByte, bitDelay)) { c =>
       val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx)
-      val byteReceived = Command.unsafeRun(cmds.receiveByte(bitDelay), c.clock, print=false)
-      assert(byteReceived == testByte.head)
+      val result = Command.unsafeRun(cmds.receiveByte(bitDelay), c.clock, print=false)
+      assert(result.retval == testByte.head)
     }
   }
 
@@ -69,8 +69,8 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
     val bitDelay = 4
     test(new UARTMock(testBytes, bitDelay)).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
       val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx)
-      val bytesReceived = Command.unsafeRun(cmds.receiveBytes(bitDelay, testBytes.length), c.clock, print=false)
-      assert(bytesReceived == testBytes)
+      val result = Command.unsafeRun(cmds.receiveBytes(bitDelay, testBytes.length), c.clock, print=false)
+      assert(result.retval == testBytes)
     }
   }
 
@@ -102,9 +102,9 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
         _ <- join(senderThread)
       } yield (receivedBytes, rxCheckStatus && txCheckStatus)
 
-      val retval = Command.unsafeRun(program, c.clock, print=false)
-      assert(retval._1 == testBytes)
-      assert(retval._2 == true)
+      val result = Command.unsafeRun(program, c.clock, print=false)
+      assert(result.retval._1 == testBytes)
+      assert(result.retval._2 == true)
     }
   }
 }
