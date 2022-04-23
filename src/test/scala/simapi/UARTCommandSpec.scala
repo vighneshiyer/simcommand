@@ -48,9 +48,8 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
         j <- join(checkerHandle)
       } yield j
       val retval = Command.unsafeRun(program, c.clock, print=false)
-      assert(retval)
-    }
-    // TODO: no checks can be run since sendByte only pokes
+      assert(retval) // This only checks that the start and stop bits are stable and full
+    } // TODO: need a check on the sending itself that doesn't depend on receiveByte
   }
 
   /*

@@ -11,7 +11,7 @@ class PrimitivesSpec extends AnyFlatSpec with ChiselScalatestTester {
     class Peekable extends Module {
       val a = IO(Output(UInt(32.W)))
       val c = Counter(16)
-      c.inc()
+      c.inc() // free running counter
       a := c.value
     }
 
@@ -34,7 +34,7 @@ class PrimitivesSpec extends AnyFlatSpec with ChiselScalatestTester {
     class Pokable extends Module {
       val a = IO(Input(UInt(32.W)))
       val aOut = IO(Output(UInt(32.W)))
-      val aReg = RegNext(a)
+      val aReg = RegNext(a) // pipelined loopback
       aOut := aReg
     }
 

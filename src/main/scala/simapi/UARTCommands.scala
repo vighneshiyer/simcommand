@@ -3,6 +3,8 @@ package simapi
 import chisel3._
 import chisel3.experimental.{DataMirror, Direction}
 import Command._
+import Combinators._
+import Helpers._
 
 class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
   assert(DataMirror.directionOf(uartIn) == Direction.Input)

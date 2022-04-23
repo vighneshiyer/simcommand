@@ -6,67 +6,68 @@ import chiseltest.{ChiselScalatestTester, WriteVcdAnnotation}
 import chisel3.experimental.BundleLiterals._
 import org.scalatest.flatspec.AnyFlatSpec
 
-/*
+import Command._
+import Combinators._
+
 class ForkSpec extends AnyFlatSpec with ChiselScalatestTester {
-  class ValidDelayLine extends Module {
+  class ValidDelayLine(delay: Int) extends Module {
     val a = IO(Input(Valid(UInt(10.W))))
     val b = IO(Output(Valid(UInt(10.W))))
     val default = Wire(Valid(UInt(10.W)))
     default.valid := false.B
     default.bits := 0.U
-    b := ShiftRegister(a, 20, default, en=1.B)
+    b := ShiftRegister(a, delay, default, en=1.B)
   }
 
-  class ForkExample(a: Valid[UInt], b: Valid[UInt], proto: Valid[UInt]) {
-    def poker(nElems: Int, cycles: Int = 0): Command[Unit] = {
-      if (cycles == nElems) {
-        Poke(a, proto.Lit(_.valid -> 0.B, _.bits -> 0.U), () =>
-          Return(Unit)
-        )
-      }
-      else
-        Poke(a, proto.Lit(_.valid -> 1.B, _.bits -> cycles.U), () =>
-          Step(1, () =>
-            poker(nElems, cycles + 1)
-          )
-        )
+  class ValidDelayLineVIPs(a: Valid[UInt], b: Valid[UInt], proto: Valid[UInt]) {
+    def poker(nElems: Int): Command[Unit] = {
+      def pokeCmd(value: Int): Command[Unit] = for {
+        _ <- poke(a, proto.Lit(_.valid -> 1.B, _.bits -> value.U))
+        _ <- step(1)
+      } yield ()
+      val pokeCmds = (0 until nElems).map(i => pokeCmd(i))
+      for {
+        _ <- sequence(pokeCmds).map(_ => ())
+        _ <- poke(a, proto.Lit(_.valid -> 0.B, _.bits -> 0.U))
+        _ <- step(1)
+      } yield ()
     }
 
-    def peeker(nElems: Int, values: Seq[Int] = Seq.empty): Command[Seq[Int]] = {
-      if (values.length == nElems) Return(values)
-      else
-        Peek(b, (value: Valid[UInt]) =>
-          if (value.valid.litToBoolean) {
-            Step(1, () =>
-              peeker(nElems, values :+ value.bits.litValue.toInt)
-            )
-          } else {
-            Step(1, () => peeker(nElems, values))
+    def peeker(nElems: Int): Command[Seq[Int]] = {
+      def peekCmd(): Command[Int] = {
+        for {
+          valid <- peek(b.valid)
+          data <- peek(b.bits)
+          _ <- step(1)
+          bits <- {
+            if (!valid.litToBoolean)
+              peekCmd()
+            else
+              lift(data.litValue.toInt)
           }
-        )
+        } yield bits
+      }
+      val peekCmds = Seq.fill(nElems)(peekCmd())
+      sequence(peekCmds)
     }
 
     def program(nElems: Int): Command[Seq[Int]] = {
-      Step(1, () =>
-        Fork(peeker(nElems), "peeker", (h2: ThreadHandle[Seq[Int]]) => // fork off peeking thread
-          Fork(poker(nElems), "poker", (h1: ThreadHandle[Unit]) => // fork off poking thread
-            Join(h1, (_: Unit) =>
-              Join(h2, (peeked: Seq[Int]) =>
-                Return(peeked)
-              )
-            )
-          )
-        )
-      )
+      for {
+        _ <- step(1)
+        peekerThread <- fork(peeker(nElems), "peeker")
+        pokerThread <- fork(poker(nElems), "poker")
+        pokerJoin <- join(pokerThread)
+        peekerJoin <- join(peekerThread)
+      } yield peekerJoin
     }
   }
 
   "Fork" should "create a thread that operates independently of the main thread" in {
-    test(new ValidDelayLine()).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
-      val cmds = new ForkExample(c.a, c.b, Valid(UInt(10.W)))
-      val retval = Command.run(cmds.program(10), c.clock, print=true)
-      Predef.assert(retval == Seq.tabulate(10)(i => i))
+    val nElems = 10
+    test(new ValidDelayLine(delay=nElems/2)).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
+      val vips = new ValidDelayLineVIPs(c.a, c.b, Valid(UInt(10.W)))
+      val retval = Command.unsafeRun(vips.program(nElems), c.clock, print=true)
+      Predef.assert(retval == (0 until nElems))
     }
   }
 }
- */

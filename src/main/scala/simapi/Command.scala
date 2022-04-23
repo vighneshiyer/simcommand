@@ -33,88 +33,7 @@ object Command {
     }
   }
 
-  // Public API
-  def poke[I <: Data](signal: I, value: I): Command[Unit] = {
-    Poke(signal, value)
-  }
-
-  def peek[I <: Data](signal: I): Command[I] = {
-    Peek(signal)
-  }
-
-  def step[I <: Data](cycles: Int): Command[Unit] = {
-    Step(cycles)
-  }
-
-  def lift[R](value: R): Command[R] = {
-    Return(value)
-  }
-
-  def noop(): Command[Unit] = {
-    lift(())
-  }
-
-  def fork[R](cmd: Command[R], name: String): Command[ThreadHandle[R]] = {
-    Fork(cmd, name)
-  }
-
-  def join[R](handle: ThreadHandle[R]): Command[R] = {
-    Join(handle)
-  }
-
-  // Command combinators
-  def concat(cmds: Seq[Command[_]]): Command[Unit] = {
-    ???
-  }
-
-  // See Cats 'Traverse' which provides 'sequence' which is exactly this type signature
-  def sequence[R](cmds: Seq[Command[R]]): Command[Seq[R]] = {
-    ???
-  }
-
-  def combine[R](cmds: Seq[R => Command[R]], initialRetval: R): Command[R] = {
-    cmds.tail.foldLeft(Cont(Return(initialRetval), r => cmds.head(r))) { (c1: Command[R], c2: R => Command[R]) =>
-      Cont[R, R](c1, (r: R) => c2(r))
-    }
-  }
-
-  def ifThenElse[R](cond: Boolean, ifTrue: Command[R], ifFalse: Command[R]): Command[R] = {
-    if (cond) ifTrue
-    else ifFalse
-  }
-
-  // Helper commands
-  def waitForValue[I <: Data](signal: I, value: I): Command[Unit] = {
-    // TODO: return # of cycles this program waited
-    for {
-      peekedValue <- peek(signal)
-      next <- if (peekedValue.litValue != value.litValue) { // TODO: this won't work for record types
-        for {
-          _ <- step(1)
-          _ <- waitForValue(signal, value)
-        } yield ()
-      } else {
-        noop()
-      }
-    } yield next
-  }
-
-  def checkSignal[I <: Data](signal: I, value: I): Command[Boolean] = {
-    for {
-      peeked <- peek(signal)
-      _ <- {
-        if (peeked.litValue != value.litValue) {Predef.assert(false, s"Signal $signal wasn't the expected value $value")}
-        step(1)
-      }
-    } yield peeked.litValue == value.litValue
-  }
-
-  def checkStable[I <: Data](signal: I, value: I, cycles: Int): Command[Boolean] = {
-    val checks = Seq.fill(cycles)(checkSignal(signal, value))
-    val allPass = sequence(checks).map(_.forall(b => b))
-    allPass // TODO: move 'expect' into Command sum type, unify with print (e.g. info), and other debug prints
-  }
-
+  // Command sum type
   // Internal classes representing DUT interaction
   protected case class Poke[I <: Data](signal: I, value: I) extends Command[Unit]
   protected case class Peek[I <: Data](signal: I) extends Command[I]
@@ -147,6 +66,37 @@ object Command {
   // protected case class GetBlocking[T](chan: ChannelHandle[T]) extends Command[T]
   // protected case class NonEmpty[T](chan: ChannelHandle[T]) extends Command[Boolean]
 
+  // Public API
+  def poke[I <: Data](signal: I, value: I): Command[Unit] = {
+    Poke(signal, value)
+  }
+
+  def peek[I <: Data](signal: I): Command[I] = {
+    Peek(signal)
+  }
+
+  def step[I <: Data](cycles: Int): Command[Unit] = {
+    Step(cycles)
+  }
+
+  def lift[R](value: R): Command[R] = {
+    Return(value)
+  }
+
+  def noop(): Command[Unit] = {
+    lift(())
+  }
+
+  def fork[R](cmd: Command[R], name: String): Command[ThreadHandle[R]] = {
+    Fork(cmd, name)
+  }
+
+  def join[R](handle: ThreadHandle[R]): Command[R] = {
+    Join(handle)
+  }
+
+
+  // Runtime
   private class ThreadIdGenerator {
     var count = 0
     def getNewThreadId: Int = {
@@ -255,10 +205,13 @@ object Command {
       case Cont(a, next) =>
         val retval = runUntilSync(thread.copy(cmd=a), time, cfg, newThreads, threadIdGen, retvals)
         // retval will contain a Return() or a Command[_] from a pending step which means 'a' is not yet complete
+        //debug(cfg, thread, time, s"[Cont] Got retval $retval")
         retval match {
           case (ThreadData(Return(retval), _, _), 0, newTs) => // a is 'complete' so continue executing next
-            runUntilSync(thread.copy(cmd=next(retval)), time, cfg, newThreads ++ newTs, threadIdGen, retvals)
+            //debug(cfg, thread, time, s"[Cont] a is complete, executing next")
+            runUntilSync(thread.copy(cmd=next(retval)), time, cfg, newTs, threadIdGen, retvals)
           case (ThreadData(c: Command[_], _, _), cycles, newTs) => // a has hit a step so we should save next in a new Concat
+            //debug(cfg, thread, time, s"[Cont] a is not complete, saving pointer at $c")
             (thread.copy(cmd=Cont(c, next)), cycles, newTs)
         }
       case f @ Fork(c, name) =>
@@ -270,7 +223,8 @@ object Command {
       case Step(cycles) =>
         if (cycles == 0) { // this Step is a nop
           debug(cfg, thread, time, "[Step] 0 cycles (NOP)")
-          runUntilSync(thread.copy(cmd=noop()), time, cfg, newThreads, threadIdGen, retvals)
+          //runUntilSync(thread.copy(cmd=noop()), time, cfg, newThreads, threadIdGen, retvals)
+          ???
         } else if (cycles == 1) { // this Step will complete in 1 more cycle
           debug(cfg, thread, time, "[Step] 1 cycle")
           (thread.copy(cmd=noop()), 1, newThreads)
