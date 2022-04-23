@@ -102,7 +102,7 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
         _ <- join(senderThread)
       } yield (receivedBytes, rxCheckStatus && txCheckStatus)
 
-      val retval = Command.unsafeRun(program, c.clock, print=true)
+      val retval = Command.unsafeRun(program, c.clock, print=false)
       assert(retval._1 == testBytes)
       assert(retval._2 == true)
     }

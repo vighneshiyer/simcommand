@@ -66,7 +66,7 @@ class ForkSpec extends AnyFlatSpec with ChiselScalatestTester {
     val nElems = 10
     test(new ValidDelayLine(delay=nElems/2)).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
       val vips = new ValidDelayLineVIPs(c.a, c.b, Valid(UInt(10.W)))
-      val retval = Command.unsafeRun(vips.program(nElems), c.clock, print=true)
+      val retval = Command.unsafeRun(vips.program(nElems), c.clock, print=false)
       Predef.assert(retval == (0 until nElems))
     }
   }
