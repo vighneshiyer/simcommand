@@ -4,23 +4,55 @@ import chisel3._
 import Command._
 import Combinators._
 
+import scala.annotation.tailrec
+import scala.util.control.TailCalls._
+
 object Helpers {
   // Helper commands
-  def waitForValue[I <: Data](signal: I, value: I): Command[Unit] = {
-    // TODO: return # of cycles this program waited
+  // @tailrec
+  // THIS NEEDS TO BE STACK SAFE
+  def doWhile(cmd: Command[Boolean]): Command[Unit] = {
     for {
+      cond <- cmd
+      _ <- {if (cond) doWhile(cmd) else noop()}
+    } yield ()
+  }
+
+  def doWhile[R](cond: Command[Boolean], action: Command[R]): Command[R] = {
+    ???
+  }
+
+  def waitForValue[I <: Data](signal: I, value: I): Command[Unit] = {
+    val check: Command[Boolean] = for {
       peekedValue <- peek(signal)
-      next <- {
-        if (peekedValue.litValue != value.litValue) { // TODO: this won't work for record types
-          for {
-            _ <- step(1)
-            _ <- waitForValue(signal, value)
-          } yield ()
-        } else {
+      _ <- {
+        if (peekedValue.litValue != value.litValue)
+          step(1)
+        else
           noop()
-        }
       }
-    } yield next
+    } yield peekedValue.litValue != value.litValue
+    doWhile(check)
+
+    /*
+    // TODO: return # of cycles this program waited
+    def inner(signal: I, value: I): Command[Unit] = {
+      for {
+        peekedValue <- peek(signal)
+        next <- {
+          if (peekedValue.litValue != value.litValue) { // TODO: this won't work for record types
+            for {
+              _ <- step(1)
+              _ <- waitForValue(signal, value)
+            } yield ()
+          } else {
+            noop()
+          }
+        }
+      } yield next
+    }
+    inner(signal, value)
+     */
   }
 
   def checkSignal[I <: Data](signal: I, value: I): Command[Boolean] = {

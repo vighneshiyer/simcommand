@@ -17,3 +17,5 @@ libraryDependencies ++= Seq(
 )
 
 fork in run := true
+// hprof is deprecated
+// javaOptions in run += "-agentlib:hprof=cpu=samples,depth=400,interval=100,lineno=y,thread=y,file=out.hprof"

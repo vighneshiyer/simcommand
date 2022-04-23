@@ -20,6 +20,7 @@ object Command {
       flatMap(r => Return(f(r)))
     }
 
+    // flatMap is NOT stack safe
     final def flatMap[R2](f: R => Command[R2]): Command[R2] = {
       this match {
         case Return(retval) => f(retval)

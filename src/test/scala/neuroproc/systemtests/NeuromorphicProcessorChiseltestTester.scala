@@ -94,7 +94,7 @@ class NeuromorphicProcessorChiseltestTester extends NeuromorphicProcessorTester 
         assert(spikes.zip(results).map(x => x._1 == x._2).reduce(_ && _), "spikes do not match expected")
 
         val deltaSeconds = (System.nanoTime() - startTest) / 1e9d
-        println(s"Took ${deltaSeconds}s to run test with manual threading and using the chiseltest interface with the NoThreadingAnnotation")
+        println(s"Took ${deltaSeconds}s to run test with chiseltest threading and using the chiseltest interface")
         // println(s"Executed $cycles cycles at an average frequency of ${cycles / deltaSeconds} Hz")
       }
   }

@@ -47,6 +47,10 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
       _ <- sendBit(0, bitDelay)
       _ <- concat((0 until 8).map(i => sendBit((byte >> i) & 0x1, bitDelay)))
       _ <- sendBit(1, bitDelay)
+      _ <- {
+        println(s"Sent byte $byte")
+        noop()
+      }
     } yield ()
   }
 
@@ -87,9 +91,14 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
       _ <- step(bitDelay / 2) // shift time to center-of-symbol
       bits <- sequence(Seq.fill(8)(receiveBit(bitDelay)))
       _ <- step(bitDelay + bitDelay / 2) // advance time past 1/2 of last data bit and stop bit
-    } yield bits.zipWithIndex.foldLeft(0) {
-      case (byte, (bit, index)) => byte | (bit << index)
-    }
+      byte = bits.zipWithIndex.foldLeft(0) {
+        case (byte, (bit, index)) => byte | (bit << index)
+      }
+      _ <- {
+        println(s"Received byte $byte")
+        noop()
+      }
+    } yield byte
 
   def receiveBytes(nBytes: Int, bitDelay: Int): Command[Seq[Int]] = {
     val cmds = Seq.fill(nBytes)(receiveByte(bitDelay))
