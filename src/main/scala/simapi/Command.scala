@@ -4,7 +4,6 @@ import chisel3._
 import chiseltest._
 
 import collection.mutable
-import scala.annotation.tailrec
 
 // Below is inspired by the trampolined continuation in TailCalls.scala (in the Scala stdlib)
 object Command {
@@ -12,7 +11,7 @@ object Command {
     * This class represents an RTL simulation command and its return value
     * @tparam R Type of the command's return value
     */
-  sealed abstract class Command[+R] {
+  sealed abstract class Command[+R] { // TODO: this should be a covariant type param
     // def fork(next => Command[R2]): Command[R2]
     // def andThen[R2](next: => Command[R2]) = {}
     // TODO: have join_all - default and join_any functionality
@@ -68,6 +67,41 @@ object Command {
   // protected case class NonEmpty[T](chan: ChannelHandle[T]) extends Command[Boolean]
 
   // Public API
+  // tailRecM will continually call f until it returns Command[Right]
+  // @tailrec - not tail recursive, but still stack safe
+  final def tailRecM[R, R2](r: R)(f: R => Command[Either[R, R2]]): Command[R2] = {
+    // see implementation for Free: https://github.com/typelevel/cats/pull/1041/files#diff-7349edfd077f9612f7181fe1f8caca63ac667c847ce83b53dceae4d08040fd55
+    f(r).flatMap {
+      case Left(value) => tailRecM(value)(f) // recursion here is lazy so the stack won't blow up
+      case Right(value) => lift(value)
+    }
+    /*
+    f(r) match {
+      case Return(Left(value)) => tailRecM(value)(f)
+      case Return(Right(value)) => lift(value)
+      // a1: Any
+      // a2: Either[R, R2]
+      // c.a: Command[Any]
+      // c.b: Any => Command[Either[R, R2]]
+      //case c: Cont[a1, a2] => c //tailRecM(r)(c)c.a ???
+      case c @ Cont(x1, x2) =>
+        for {
+          x1Ret <- x1
+          either <- x2(x1Ret)
+          x <- either match {
+            case Left(r) => tailRecM(r)(f) // not in tail position
+            case Right(r) => lift(r)
+          }
+        } yield x
+      //case Poke(signal, value) => ???
+      //case Peek(signal) => ???
+      //case Step(cycles) => ???
+      //case Fork(c, name) => ???
+      //case Join(threadHandle) => ???
+    }
+     */
+  }
+
   def poke[I <: Data](signal: I, value: I): Command[Unit] = {
     Poke(signal, value)
   }

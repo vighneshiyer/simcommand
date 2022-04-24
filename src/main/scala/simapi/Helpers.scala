@@ -12,10 +12,18 @@ object Helpers {
   // @tailrec
   // THIS NEEDS TO BE STACK SAFE
   def doWhile(cmd: Command[Boolean]): Command[Unit] = {
+    tailRecM(()) { _: Unit =>
+      for {
+        cond <- cmd
+        retval <- {if (cond) lift(Left(())) else lift(Right(()))}
+      } yield retval
+    }
+    /*
     for {
       cond <- cmd
       _ <- {if (cond) doWhile(cmd) else noop()}
     } yield ()
+     */
   }
 
   def doWhile[R](cond: Command[Boolean], action: Command[R]): Command[R] = {

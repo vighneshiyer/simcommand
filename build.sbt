@@ -16,6 +16,12 @@ libraryDependencies ++= Seq(
   "io.spray" %%  "spray-json" % "1.3.5"
 )
 
+lazy val app = (project in file("."))
+  .settings(
+    assembly / mainClass := Some("simapi.ProfilingExample"),
+  )
+
 fork in run := true
+mainClass in Compile := Some("simapi.ProfilingExample")
 // hprof is deprecated
 // javaOptions in run += "-agentlib:hprof=cpu=samples,depth=400,interval=100,lineno=y,thread=y,file=out.hprof"
