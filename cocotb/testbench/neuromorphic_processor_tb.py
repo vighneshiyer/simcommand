@@ -10,11 +10,13 @@ BAUDRATE         = 115200
 RANKORDERENC     = False
 USEROUNDEDWGHTS  = True
 
+
 def fetch(file: str) -> List[int]:
     with open(file, 'r') as f:
         lines = [x for x in f]
         assert len(lines) == 1
         return [int(x) for x in lines[0].split(',')]
+
 
 async def receiveByte(dut, bitDelay: int, byte: int):
     print(f"Sending byte {byte}")
@@ -29,6 +31,7 @@ async def receiveByte(dut, bitDelay: int, byte: int):
     dut.io_uartRx.value = 1
     await ClockCycles(dut.clock, bitDelay)
     print(f"Sent byte {byte}")
+
 
 async def transferByte(dut, bitDelay: int) -> int:
     print("Receiving a byte")
@@ -45,8 +48,10 @@ async def transferByte(dut, bitDelay: int) -> int:
     print(f"Received {byte}")
     return byte
 
+spikes: List[int] = []
+
+
 async def fetchSpikes(dut, receiveDone: Event, bitDelay: int) -> List[int]:
-    spikes: List[int] = []
     while True:
         if not receiveDone.is_set():
             if dut.io_uartTx.value == 0:
@@ -101,8 +106,9 @@ async def neuromorphic_processor_tb(dut):
     await ClockCycles(dut.clock, int(FREQ/2))
     receiveDone.set()
 
+    print(datetime.datetime.now())
     print("Response received - comparing results")
-    assert spikes.length == results.length, "number of spikes does not match expected"
+    assert len(spikes) == len(results), "number of spikes does not match expected"
     for i in range(len(spikes)):
         assert spikes[i] == results[i], "spikes do not match expected: {spikes[i]} != {results[i]}"
     print(datetime.datetime.now())
