@@ -41,7 +41,7 @@ class ForkSpec extends AnyFlatSpec with ChiselScalatestTester {
           _ <- step(1)
           bits <- {
             if (!valid.litToBoolean)
-              peekCmd()
+              peekCmd() // TODO: recursive call in flatMap, will blow up stack eventually
             else
               lift(data.litValue.toInt)
           }

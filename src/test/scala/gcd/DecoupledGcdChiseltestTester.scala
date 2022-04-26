@@ -12,6 +12,9 @@ import firrtl.stage.FirrtlCircuitAnnotation
 import firrtl.{AnnotationSeq, EmittedCircuitAnnotation}
 import logger.LogLevelAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
+import simapi.DecoupledCommands
+import simapi.Command
+import simapi.Command.Command
 
 class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTester {
   behavior of "DecoupledGcd"
@@ -20,16 +23,15 @@ class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTeste
   val (maxX, maxY) = (100, 100)
   val testValues = for {x <- 2 to maxX; y <- 2 to maxY} yield (BigInt(x), BigInt(y), BigInt(x).gcd(y))
   val bitWidth = 60
-
+  val inputBundles = testValues.map { case (a, b, _) =>
+    new GcdInputBundle(bitWidth).Lit(_.value1 -> a.U, _.value2 -> b.U)
+  }
+  val outputBundles = testValues.map { case (a, b, c) =>
+    new GcdOutputBundle(bitWidth).Lit(_.value1 -> a.U, _.value2 -> b.U, _.gcd -> c.U)
+  }
 
   def runWithChiseltestThreads(backend: SimulatorAnnotation): Unit = {
     val simName = backend.getSimulator.name
-    val inputBundles = testValues.map { case (a, b, _) =>
-      new GcdInputBundle(bitWidth).Lit(_.value1 -> a.U, _.value2 -> b.U)
-    }
-    val outputBundles = testValues.map { case (a, b, c) =>
-      new GcdOutputBundle(bitWidth).Lit(_.value1 -> a.U, _.value2 -> b.U, _.gcd -> c.U)
-    }
 
     val startElab = System.nanoTime()
     test(new DecoupledGcd(bitWidth)).withAnnotations(Seq(backend)) { dut =>
@@ -52,6 +54,42 @@ class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTeste
 
       val deltaSeconds = (System.nanoTime() - startTest) / 1e9d
       println(s"Took ${deltaSeconds}s to run test with chiseltest threads w/ $simName")
+    }
+  }
+
+  def runWithCommandAPI(backend: SimulatorAnnotation): Unit = {
+    val simName = backend.getSimulator.name
+
+    val startElab = System.nanoTime()
+    test(new DecoupledGcd(bitWidth)).withAnnotations(Seq(backend, NoThreadingAnnotation)) { dut =>
+      println(s"Took ${(System.nanoTime() - startElab) / 1e9d}s to elaborate, compile and create simulation w/ $simName")
+      val startTest = System.nanoTime()
+      val inputCmds = new DecoupledCommands(dut.input)
+      val outputCmds = new DecoupledCommands(dut.output)
+
+      dut.reset.poke(true.B)
+      dut.clock.step(2)
+      dut.reset.poke(false.B)
+      dut.clock.setTimeout(1000)
+
+      val program: Command[Seq[GcdOutputBundle]] = for {
+        pushThread <- simapi.Command.fork(inputCmds.enqueueSeq(inputBundles.toVector), "push")
+        pullThread <- simapi.Command.fork(outputCmds.dequeueN(outputBundles.length),"pull")
+        _ <- simapi.Command.join(pushThread)
+        output <- simapi.Command.join(pullThread)
+      } yield output
+
+      val result = Command.unsafeRun(program, dut.clock, false)
+      Predef.assert(result.retval.length == outputBundles.length)
+      result.retval.zip(outputBundles).foreach { case (actual, gold) =>
+        Predef.assert(actual.gcd.litValue == gold.gcd.litValue)
+        Predef.assert(actual.value1.litValue == gold.value1.litValue)
+        Predef.assert(actual.value2.litValue == gold.value2.litValue)
+      }
+
+      val deltaSeconds = (System.nanoTime() - startTest) / 1e9d
+      println(s"Took ${deltaSeconds}s to run test with command API w/ $simName")
+      println(s"Executed ${result.cycles} cycles at an average frequency of ${result.cycles / deltaSeconds} Hz")
     }
   }
 
@@ -173,6 +211,10 @@ class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTeste
 
   it should  "work with chiseltest single threaded and verilator" in {
     runWithChiseltestSingleThread(VerilatorBackendAnnotation)
+  }
+
+  it should "work with Command API and verilator" in {
+    runWithCommandAPI(VerilatorBackendAnnotation)
   }
 
   it should  "work with raw simulator and single threaded and treadle" in {

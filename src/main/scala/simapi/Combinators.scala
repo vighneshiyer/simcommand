@@ -18,11 +18,11 @@ object Combinators {
 
   // See Cats 'Traverse' which provides 'sequence' which is exactly this type signature
   def sequence[R](cmds: Seq[Command[R]]): Command[Seq[R]] = {
-    cmds.foldRight(lift(Seq.empty[R])) { case (cmd: Command[R], seq: Command[Seq[R]]) =>
-      for {
-        retval <- cmd
-        s <- seq
-      } yield retval +: s
+    tailRecM((cmds, Vector.empty[R])) { case (cmds, retvalSeq) =>
+      if (cmds.isEmpty) lift(Right(retvalSeq))
+      else for {
+        retval <- cmds.head
+      } yield Left((cmds.tail, retvalSeq :+ retval))
     }
   }
 

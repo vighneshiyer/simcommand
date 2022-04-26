@@ -26,7 +26,7 @@ object Helpers {
      */
   }
 
-  def doWhile[R](cond: Command[Boolean], action: Command[R]): Command[R] = {
+  def doWhile[R, S](cond: S => Boolean, action: Command[(R, S)], initialState: S): Command[Seq[R]] = {
     ???
   }
 

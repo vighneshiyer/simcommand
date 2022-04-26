@@ -2,6 +2,7 @@ from typing import List
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import Timer, ClockCycles, Event, RisingEdge
+import datetime
 
 
 FREQ             = 80000000                 # in Hz
@@ -16,7 +17,7 @@ def fetch(file: str) -> List[int]:
         return [int(x) for x in lines[0].split(',')]
 
 async def receiveByte(dut, bitDelay: int, byte: int):
-    print("Sending byte {byte}")
+    print(f"Sending byte {byte}")
     # Start bit
     dut.io_uartRx.value = 0
     await ClockCycles(dut.clock, bitDelay)
@@ -27,7 +28,7 @@ async def receiveByte(dut, bitDelay: int, byte: int):
     # Stop bit
     dut.io_uartRx.value = 1
     await ClockCycles(dut.clock, bitDelay)
-    print("Sent byte {byte}")
+    print(f"Sent byte {byte}")
 
 async def transferByte(dut, bitDelay: int) -> int:
     print("Receiving a byte")
@@ -41,7 +42,7 @@ async def transferByte(dut, bitDelay: int) -> int:
     # Stop bit
     assert dut.io_uartTx.value == 1
     await ClockCycles(dut.clock, bitDelay)
-    print("Received {byte}")
+    print(f"Received {byte}")
     return byte
 
 async def fetchSpikes(dut, receiveDone: Event, bitDelay: int) -> List[int]:
@@ -66,6 +67,7 @@ async def neuromorphic_processor_tb(dut):
     image = fetch("../../src/test/scala/neuroproc/systemtests/image.txt")
     results = fetch("../../src/test/scala/neuroproc/systemtests/results_round.txt") if (USEROUNDEDWGHTS) else fetch("../..//src/test/scala/neuroproc/systemtests/results_toInt.txt")
 
+    print(datetime.datetime.now())
     # Clock is generated inside Python
     cocotb.start_soon(Clock(dut.clock, 2, units="ps").start())
     await ClockCycles(dut.clock, 2)
@@ -103,3 +105,4 @@ async def neuromorphic_processor_tb(dut):
     assert spikes.length == results.length, "number of spikes does not match expected"
     for i in range(len(spikes)):
         assert spikes[i] == results[i], "spikes do not match expected: {spikes[i]} != {results[i]}"
+    print(datetime.datetime.now())

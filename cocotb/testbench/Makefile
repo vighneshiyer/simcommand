@@ -5,7 +5,7 @@ SIM ?= verilator
 TOPLEVEL_LANG ?= verilog
 
 VERILOG_SOURCES += $(PWD)/../../test_run_dir/Neuromorphic_Processor_should_process_an_image/NeuromorphicProcessor.sv \
-	$(PWD)/../../test_run_dir/Neuromorphic_Processor_should_process_an_image/ClockBufferBB.sv
+	$(PWD)/ClockBufferBB.sv
 # use VHDL_SOURCES for VHDL files
 COMPILE_ARGS += -DRANDOMIZE_REG_INIT -DRANDOMIZE_MEM_INIT
 #EXTRA_ARGS += --trace --trace-structs
