@@ -26,8 +26,19 @@ object Combinators {
     }
   }
 
+  def traverse[R, R2](cmds: Seq[Command[R]])(f: R => Command[R2]): Seq[Command[R2]] = {
+    ???
+  }
+
+  // specialization of sequence to throw away return values
+  // TODO: is this called sequence_ in cats?
   def concat[R](cmds: Seq[Command[R]]): Command[Unit] = {
-    sequence(cmds).map(_ => ())
+    tailRecM(cmds) { case cmds =>
+      if (cmds.isEmpty) lift(Right(noop()))
+      else for {
+        _ <- cmds.head
+      } yield Left(cmds.tail)
+    }
   }
 
   def chain[R](cmds: Seq[R => Command[R]], initialRetval: R): Command[R] = {
@@ -53,4 +64,12 @@ object Combinators {
       }
     } yield result
   }
+
+  def ifM[R](c: Command[Boolean], ifTrue: Command[R], ifFalse: Command[R]): Command[R] = {
+    for {
+      cond <- c
+      result <- {if (cond) ifTrue else ifFalse}
+    } yield result
+  }
+
 }

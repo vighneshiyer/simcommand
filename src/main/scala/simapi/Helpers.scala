@@ -4,13 +4,7 @@ import chisel3._
 import Command._
 import Combinators._
 
-import scala.annotation.tailrec
-import scala.util.control.TailCalls._
-
 object Helpers {
-  // Helper commands
-  // @tailrec
-  // THIS NEEDS TO BE STACK SAFE
   def doWhile(cmd: Command[Boolean]): Command[Unit] = {
     tailRecM(()) { _: Unit =>
       for {
@@ -18,12 +12,6 @@ object Helpers {
         retval <- {if (cond) lift(Left(())) else lift(Right(()))}
       } yield retval
     }
-    /*
-    for {
-      cond <- cmd
-      _ <- {if (cond) doWhile(cmd) else noop()}
-    } yield ()
-     */
   }
 
   def doWhile[R, S](cond: S => Boolean, action: Command[(R, S)], initialState: S): Command[Seq[R]] = {
@@ -31,36 +19,17 @@ object Helpers {
   }
 
   def waitForValue[I <: Data](signal: I, value: I): Command[Unit] = {
+    // TODO: return # of cycles this program waited
     val check: Command[Boolean] = for {
       peekedValue <- peek(signal)
       _ <- {
-        if (peekedValue.litValue != value.litValue)
+        if (peekedValue.litValue != value.litValue) // TODO: this won't work for record types
           step(1)
         else
           noop()
       }
     } yield peekedValue.litValue != value.litValue
     doWhile(check)
-
-    /*
-    // TODO: return # of cycles this program waited
-    def inner(signal: I, value: I): Command[Unit] = {
-      for {
-        peekedValue <- peek(signal)
-        next <- {
-          if (peekedValue.litValue != value.litValue) { // TODO: this won't work for record types
-            for {
-              _ <- step(1)
-              _ <- waitForValue(signal, value)
-            } yield ()
-          } else {
-            noop()
-          }
-        }
-      } yield next
-    }
-    inner(signal, value)
-     */
   }
 
   def checkSignal[I <: Data](signal: I, value: I): Command[Boolean] = {

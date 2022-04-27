@@ -11,10 +11,7 @@ object Command {
     * This class represents an RTL simulation command and its return value
     * @tparam R Type of the command's return value
     */
-  sealed abstract class Command[+R] { // TODO: this should be a covariant type param
-    // def fork(next => Command[R2]): Command[R2]
-    // def andThen[R2](next: => Command[R2]) = {}
-    // TODO: have join_all - default and join_any functionality
+  sealed abstract class Command[+R] {
     final def map[R2](f: R => R2): Command[R2] = {
       flatMap(r => Return(f(r)))
     }
@@ -23,10 +20,6 @@ object Command {
     final def flatMap[R2](f: R => Command[R2]): Command[R2] = {
       this match {
         case Return(retval) => f(retval)
-        // a1: Any
-        // a2: R
-        // c.a: R1 (hidden)
-        // c.f: R1 (hidden) => R
         case c: Cont[a1, a2] => Cont(c.a, (x: a1) => c.f(x) flatMap f)
         case c: Command[R] => Cont(c, f)
       }
@@ -49,14 +42,9 @@ object Command {
 
   // Internal classes representing fork/join synchronization
   protected case class ThreadHandle[R](id: Int)
-  // semantics of Fork:
-  // the thread calling Fork continues execution to the next block until a step is seen
-  // then the Fork'ed thread will execute until a step is seen and hand back control to the main thread, and so forth until the forked thread returns
   protected case class Fork[R](c: Command[R], name: String) extends Command[ThreadHandle[R]] {
     def makeThreadHandle(id: Int): ThreadHandle[R] = ThreadHandle[R](id)
   }
-  // semantics of Join:
-  // the thread calling Join on another thread will block (allow infinite time advancement) until the thread being joined is complete and returns a value
   protected case class Join[R](threadHandle: ThreadHandle[R]) extends Command[R]
 
   // Internal classes representing an inter-thread communication channel
@@ -67,39 +55,15 @@ object Command {
   // protected case class NonEmpty[T](chan: ChannelHandle[T]) extends Command[Boolean]
 
   // Public API
+
   // tailRecM will continually call f until it returns Command[Right]
-  // @tailrec - not tail recursive, but still stack safe
+  // not tail recursive, but still stack safe
+  // similar implementation as cats.Free: https://github.com/typelevel/cats/pull/1041/files#diff-7349edfd077f9612f7181fe1f8caca63ac667c847ce83b53dceae4d08040fd55
   final def tailRecM[R, R2](r: R)(f: R => Command[Either[R, R2]]): Command[R2] = {
-    // see implementation for Free: https://github.com/typelevel/cats/pull/1041/files#diff-7349edfd077f9612f7181fe1f8caca63ac667c847ce83b53dceae4d08040fd55
     f(r).flatMap {
       case Left(value) => tailRecM(value)(f) // recursion here is lazy so the stack won't blow up
       case Right(value) => lift(value)
     }
-    /*
-    f(r) match {
-      case Return(Left(value)) => tailRecM(value)(f)
-      case Return(Right(value)) => lift(value)
-      // a1: Any
-      // a2: Either[R, R2]
-      // c.a: Command[Any]
-      // c.b: Any => Command[Either[R, R2]]
-      //case c: Cont[a1, a2] => c //tailRecM(r)(c)c.a ???
-      case c @ Cont(x1, x2) =>
-        for {
-          x1Ret <- x1
-          either <- x2(x1Ret)
-          x <- either match {
-            case Left(r) => tailRecM(r)(f) // not in tail position
-            case Right(r) => lift(r)
-          }
-        } yield x
-      //case Poke(signal, value) => ???
-      //case Peek(signal) => ???
-      //case Step(cycles) => ???
-      //case Fork(c, name) => ???
-      //case Join(threadHandle) => ???
-    }
-     */
   }
 
   def poke[I <: Data](signal: I, value: I): Command[Unit] = {
