@@ -1,8 +1,106 @@
 # Simulation Command API for Fast Multithreaded RTL Testbenches
 
-This repo contains an implementation of a simulation command monad in Scala that is used with [chiseltest](https://github.com/ucb-bar/chiseltest) to describe and execute multithreaded RTL simulations with minimal threading overhead.
+This repo contains an implementation and benchmarks of a simulation command monad in Scala that is used with [chiseltest](https://github.com/ucb-bar/chiseltest) to describe and execute multithreaded RTL simulations with minimal threading overhead.
 
-## Command API
+## Docs
+### Intro
+SimCommand is a library for writing multi-threaded high-performance RTL testbenches in Scala.
+It is primarily designed for testing circuits [written in Chisel](https://github.com/chipsalliance/chisel3), but can also be used with [Chisel's Verilog blackboxes](https://www.chisel-lang.org/chisel3/docs/explanations/blackboxes.html) to test any single-clock synchronous Verilog RTL.
+This library depends on [chiseltest](https://www.chisel-lang.org/chiseltest/) ([repo](https://github.com/ucb-bar/chiseltest)), which is a Scala library for interacting with RTL simulators (including treadle, Verilator, VCS).
+
+### A Simple Example
+Let's test this simple Chisel circuit of a register sitting between a 32-bit input and output.
+```scala
+import chisel3._
+class Register extends Module {
+  val in = IO(Input(UInt(32.W)))
+  val out = IO(Output(UInt(32.W)))
+  out := RegNext(in)
+}
+```
+
+You can use the chiseltest `test` function to elaborate the `Register` circuit, compile an RTL simulation, and get access to a handle to the DUT:
+```scala
+import chiseltest._
+import org.scalatest.flatspec.AnyFlatSpec
+class RegisterTester extends AnyFlatSpec with ChiselScalatestTester {
+  test(new Register()) { dut =>
+    // testing code here
+  }
+}
+```
+
+The core datatype of SimCommand is `Command[R]` which is a *description* of an interaction with the DUT.
+The type parameter `R` is type of the value that a `Command` will terminate with.
+There are several user functions that can be used to construct a `Command` such as `peek(signal)`, `poke(signal, value)` and `step(numCycles)`.
+
+```scala
+import chiseltest._
+import simcommand._
+test(new Register()) { dut =>
+  val poker: Command[Unit] = poke(dut.in, 100.U)
+  val stepper: Command[Unit] = step(cycles=1)
+  val peeker: Command[UInt] = peek(dut.out)
+}
+```
+
+Note that constructing the `peeker`, `poker`, and `stepper` `Command`s doesn't actually do anything - each of these values just *describes* a simulator interaction, but doesn't perform it.
+This is in contrast to chiseltest's `poke`, `peek` and `step` functions which *eagerly perform* their associated actions.
+
+Note that `poke` and `step` both return `Command[Unit]` which indicates that they terminate with `(): Unit` (since they have no information to return to the testbench).
+In contrast, `peek` returns `Command[I]` where `I` is the type of the signal being peeked.
+In this example, `I` is a Chisel `UInt`: a hardware unsigned integer.
+
+To actually run any of these commands, we have to explicitly call `unsafeRun` which calls the underlying command in chiseltest.
+```scala
+val poker: Command[Unit] = poke(dut.in, 100.U)
+val dummy1: Unit = unsafeRun(poker, dut.clock)
+
+val stepper: Command[Unit] = step(cycles=1)
+val dummy2: Unit = unsafeRun(stepper, dut.clock)
+
+val peeker: Command[UInt] = peek(dut.out)
+val value: UInt = unsafeRun(peeker, dut.clock)
+val correctBehavior = value.litValue == 100
+```
+
+Of course, this is tedious, so we want a way to group multiple `Command`s sequentially so that we can call `unsafeRun` only once at the very end of our testbench description.
+
+### Chaining Commands
+`Command[R]` has two functions defined on it:
+  - `flatMap[R2](f: R => Command[R2]): Command[R2]` which allows one to 'unwrap' the `R` from a `Command[R]` and continue with another `Command[R2]`
+  - `map[R2](f: R => R2): Command[R2]` which maps the inner value of type `R` to a value of type `R2` via `f`
+
+Let's use these functions to chain the `Command`s from the previous example into a single `Command`, which terminates with a Boolean which is true if the circuit behaved correctly.
+```scala
+val program: Command[Boolean] =
+  poke(dut.in, 100.U).flatMap { _: Unit =>
+    step(1).flatMap { _: Unit =>
+      peek(dut.out).map { value: UInt =>
+        value.litValue == 100
+      }
+    }
+  }
+```
+
+Notice how `flatMap` is used to 'extract' the return value from a `Command` and follow it up with another `Command`.
+The inner-most call to `peek` is followed by a `map` which extracts the return value of the peek and evaluates a function to return a `Boolean`.
+
+In Scala, for-comprehensions are syntactic sugar for expressing nested calls to `flatMap` followed by a final call to `map`.
+The code above can be expressed like this:
+```scala
+val program: Command[Boolean] = for {
+  _ <- poke(dut.in, 100.U)
+  _ <- step(1)
+  value <- peek(dut.out)
+} yield value.litValue == 100
+```
+
+Now our `program` looks a lot like a sequence of imperative statements - *but* it actually is just a description of a simulation program - it is a *value* which can be interpreted by the SimCommand runtime.
+
+### Multithreading
+
+### Runtime / Scheduler
 
 
 ## Testbenches

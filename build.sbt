@@ -16,7 +16,7 @@ libraryDependencies ++= Seq(
   "io.spray" %%  "spray-json" % "1.3.5"
 )
 
-lazy val app = (project in file("."))
+lazy val simcommand = (project in file("."))
   .settings(
     assembly / mainClass := Some("simapi.ProfilingExample"),
   )
