@@ -1,19 +1,58 @@
-package simapi
+package simcommand
 
 import Command._
 
 // Command combinators (functions that take Commands and return Commands)
 object Combinators {
-  def repeat(cmd: Command[Unit], n: Int): Command[Unit] = {
-    def inner(cmd: Command[Unit], n: Int, count: Int): Command[Unit] = {
-      if (count == n) noop()
-      else
-        for {
-          _ <- cmd
-          _ <- inner(cmd, n, count + 1)
-        } yield ()
+  def repeat(cmd: Command[_], n: Int): Command[Unit] = {
+    tailRecM(0) { iteration =>
+      if (iteration == n) lift(Right(()))
+      else for {
+        _ <- cmd
+      } yield Left(iteration + 1)
     }
-    inner(cmd, n, 0)
+  }
+
+  def repeatCollect[R](cmd: Command[R], n: Int): Command[Seq[R]] = {
+    tailRecM(0, Vector.empty[R]) { case (iteration, collection) =>
+      if (iteration == n) lift(Right(collection))
+      else for {
+        retval <- cmd
+      } yield Left((iteration + 1, collection :+ retval))
+    }
+  }
+
+  def doWhile(cmd: Command[Boolean]): Command[Unit] = {
+    tailRecM(()) { _: Unit =>
+      for {
+        cond <- cmd
+        retval <- {if (cond) lift(Left(())) else lift(Right(()))}
+      } yield retval
+    }
+  }
+
+  def doWhileCollect[R](cmd: Command[(R, Boolean)]): Command[Seq[R]] = {
+    ???
+  }
+
+  def doWhileCollectLast[R](cmd: Command[(R, Boolean)]): Command[R] = {
+    ???
+  }
+
+  def doWhile[R, S](cond: S => Boolean, action: Command[(R, S)], initialState: S): Command[Seq[R]] = {
+    ???
+  }
+
+  def forever(cmd: Command[_]): Command[Nothing] = {
+    ???
+  }
+
+  def zip[R1, R2](cmd1: Command[R1], cmd2: Command[R2]): Command[(R1, R2)] = {
+    ???
+  }
+
+  def map2[R1, R2, R3](cmd1: Command[R1], cmd2: Command[R2], f: (R1, R2) => R3): Command[R3] = {
+    ???
   }
 
   // See Cats 'Traverse' which provides 'sequence' which is exactly this type signature
@@ -55,6 +94,7 @@ object Combinators {
     }
   }
 
+  // TODO: duplicate
   def ifThenElse[R](cond: Command[Boolean], ifTrue: Command[R], ifFalse: Command[R]): Command[R] = {
     for {
       c <- cond
@@ -65,10 +105,11 @@ object Combinators {
     } yield result
   }
 
-  def ifM[R](c: Command[Boolean], ifTrue: Command[R], ifFalse: Command[R]): Command[R] = {
+  // TODO: should be a member of Command[Boolean]
+  def ifM[R](cond: Command[Boolean], ifTrue: Command[R], ifFalse: Command[R]): Command[R] = {
     for {
-      cond <- c
-      result <- {if (cond) ifTrue else ifFalse}
+      c <- cond
+      result <- {if (c) ifTrue else ifFalse}
     } yield result
   }
 

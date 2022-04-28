@@ -1,4 +1,4 @@
-package simapi
+package simcommand
 
 import chisel3._
 import chisel3.experimental.{DataMirror, Direction}
@@ -6,7 +6,7 @@ import Command._
 import Combinators._
 import Helpers._
 
-class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
+class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool, cyclesPerBit: Int) {
   assert(DataMirror.directionOf(uartIn) == Direction.Input)
   assert(DataMirror.directionOf(uartOut) == Direction.Output)
   val bitsPerSymbol = 10
@@ -27,26 +27,26 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
     print("Sent byte {byte}")
   */
 
-  def sendReset(bitDelay: Int): Command[Unit] = {
+  def sendReset(): Command[Unit] = {
     // Keep idle high for an entire symbol period to reset any downstream receivers
     for {
       _ <- poke(uartIn, 1.B)
-      _ <- step(bitDelay * (bitsPerSymbol + 1))
+      _ <- step(cyclesPerBit * (bitsPerSymbol + 1))
     } yield ()
   }
 
-  def sendBit(bit: Int, bitDelay: Int): Command[Unit] = {
+  def sendBit(bit: Int): Command[Unit] = {
     for {
       _ <- poke(uartIn, bit.B)
-      _ <- step(bitDelay)
+      _ <- step(cyclesPerBit)
     } yield ()
   }
 
-  def sendByte(byte: Int, bitDelay: Int): Command[Unit] = {
+  def sendByte(byte: Int): Command[Unit] = {
     for {
-      _ <- sendBit(0, bitDelay)
-      _ <- concat((0 until 8).map(i => sendBit((byte >> i) & 0x1, bitDelay)))
-      _ <- sendBit(1, bitDelay)
+      _ <- sendBit(0)
+      _ <- concat((0 until 8).map(i => sendBit((byte >> i) & 0x1)))
+      _ <- sendBit(1)
       _ <- {
         println(s"Sent byte $byte")
         noop()
@@ -54,8 +54,8 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
     } yield ()
   }
 
-  def sendBytes(bytes: Seq[Int], bitDelay: Int): Command[Unit] = {
-    val cmds = bytes.map(b => sendByte(b, bitDelay))
+  def sendBytes(bytes: Seq[Int]): Command[Unit] = {
+    val cmds = bytes.map(b => sendByte(b))
     concat(cmds)
   }
 
@@ -77,20 +77,20 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
     return byte
    */
 
-  def receiveBit(bitDelay: Int): Command[Int] = {
+  def receiveBit(): Command[Int] = {
     // Assuming that a start bit has already been seen and current time is at the midpoint of the start bit
     for {
-      _ <- step(bitDelay)
+      _ <- step(cyclesPerBit)
       b <- peek(uartOut)
     } yield b.litValue.toInt
   }
 
-  def receiveByte(bitDelay: Int): Command[Int] =
+  def receiveByte(): Command[Int] =
     for {
       _ <- waitForValue(uartOut, 0.U) // wait until start bit is seen // TODO: reduce polling frequency
-      _ <- step(bitDelay / 2) // shift time to center-of-symbol
-      bits <- sequence(Seq.fill(8)(receiveBit(bitDelay)))
-      _ <- step(bitDelay + bitDelay / 2) // advance time past 1/2 of last data bit and stop bit
+      _ <- step(cyclesPerBit / 2) // shift time to center-of-symbol
+      bits <- sequence(Seq.fill(8)(receiveBit()))
+      _ <- step(cyclesPerBit + cyclesPerBit / 2) // advance time past 1/2 of last data bit and stop bit
       byte = bits.zipWithIndex.foldLeft(0) {
         case (byte, (bit, index)) => byte | (bit << index)
       }
@@ -100,8 +100,8 @@ class UARTCommands(uartIn: chisel3.Bool, uartOut: chisel3.Bool) {
       }
     } yield byte
 
-  def receiveBytes(nBytes: Int, bitDelay: Int): Command[Seq[Int]] = {
-    val cmds = Seq.fill(nBytes)(receiveByte(bitDelay))
+  def receiveBytes(nBytes: Int): Command[Seq[Int]] = {
+    val cmds = Seq.fill(nBytes)(receiveByte())
     sequence(cmds)
   }
 }

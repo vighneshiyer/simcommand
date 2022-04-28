@@ -1,12 +1,12 @@
 package neuroproc.systemtests
 
 import neuroproc._
-import simapi._
+import simcommand._
 import chisel3._
 import chiseltest._
 import chiseltest.internal.NoThreadingAnnotation
-import simapi.UARTCommands
-import simapi.Command._
+import simcommand.UARTCommands
+import simcommand.Command._
 
 class NeuromorphicProcessorCommandTester extends NeuromorphicProcessorTester {
 
@@ -30,9 +30,9 @@ class NeuromorphicProcessorCommandTester extends NeuromorphicProcessorTester {
       val bytes = image.indices.flatMap { i =>
         Seq((i >> 8) & 0xff, i & 0xff, (image(i) >> 8) & 0xff, image(i) & 0xff)
       }
-      val commands = new UARTCommands(dut.io.uartRx, dut.io.uartTx)
-      val receiver = commands.receiveBytes(110, bitDelay)
-      val sender = commands.sendBytes(bytes, bitDelay)
+      val commands = new UARTCommands(dut.io.uartRx, dut.io.uartTx, bitDelay)
+      val receiver = commands.receiveBytes(110)
+      val sender = commands.sendBytes(bytes)
 
       val program: Command[Seq[Int]] =
         for {

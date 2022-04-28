@@ -1,4 +1,4 @@
-package simapi
+package simcommand
 
 import chisel3._
 import chisel3.util.DecoupledIO
@@ -30,8 +30,13 @@ class DecoupledCommands[T <: Data](io: DecoupledIO[T]) {
   } yield value
 
   def dequeueN(n: Int): Command[Seq[T]] = {
-    // TODO: replace with repeatAndGet
-    val dequeueCmds = Seq.fill(n)(dequeue())
-    sequence(dequeueCmds.toVector)
+    repeatCollect(dequeue(), n)
   }
+
+  def monitorOne: Command[T] = for {
+    _ <- waitForValue(io.valid, true.B)
+    _ <- waitForValue(io.ready, true.B)
+    data <- peek(io.bits)
+    _ <- step(1)
+  } yield data
 }

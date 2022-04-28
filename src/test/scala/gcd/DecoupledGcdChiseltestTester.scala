@@ -12,9 +12,9 @@ import firrtl.stage.FirrtlCircuitAnnotation
 import firrtl.{AnnotationSeq, EmittedCircuitAnnotation}
 import logger.LogLevelAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
-import simapi.DecoupledCommands
-import simapi.Command
-import simapi.Command.Command
+import simcommand.DecoupledCommands
+import simcommand.Command
+import simcommand.Command.Command
 
 class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTester {
   behavior of "DecoupledGcd"
@@ -73,10 +73,10 @@ class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTeste
       dut.clock.setTimeout(1000)
 
       val program: Command[Seq[GcdOutputBundle]] = for {
-        pushThread <- simapi.Command.fork(inputCmds.enqueueSeq(inputBundles.toVector), "push")
-        pullThread <- simapi.Command.fork(outputCmds.dequeueN(outputBundles.length),"pull")
-        _ <- simapi.Command.join(pushThread)
-        output <- simapi.Command.join(pullThread)
+        pushThread <- simcommand.Command.fork(inputCmds.enqueueSeq(inputBundles.toVector), "push")
+        pullThread <- simcommand.Command.fork(outputCmds.dequeueN(outputBundles.length),"pull")
+        _ <- simcommand.Command.join(pushThread)
+        output <- simcommand.Command.join(pullThread)
       } yield output
 
       val result = Command.unsafeRun(program, dut.clock, false)

@@ -1,23 +1,10 @@
-package simapi
+package simcommand
 
 import chisel3._
 import Command._
 import Combinators._
 
 object Helpers {
-  def doWhile(cmd: Command[Boolean]): Command[Unit] = {
-    tailRecM(()) { _: Unit =>
-      for {
-        cond <- cmd
-        retval <- {if (cond) lift(Left(())) else lift(Right(()))}
-      } yield retval
-    }
-  }
-
-  def doWhile[R, S](cond: S => Boolean, action: Command[(R, S)], initialState: S): Command[Seq[R]] = {
-    ???
-  }
-
   def waitForValue[I <: Data](signal: I, value: I): Command[Unit] = {
     // TODO: return # of cycles this program waited
     val check: Command[Boolean] = for {

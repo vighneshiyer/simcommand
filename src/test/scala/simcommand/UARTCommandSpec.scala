@@ -1,4 +1,4 @@
-package simapi
+package simcommand
 
 import Command._
 import chisel3._
@@ -40,12 +40,12 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
     val bitDelay = 4
     test(new UARTMock(Seq.empty, bitDelay)).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
       c.clock.setTimeout(100)
-      val cmds = new UARTCommands(uartIn=c.rx, uartOut=c.tx)
+      val cmds = new UARTCommands(uartIn=c.rx, uartOut=c.tx, cyclesPerBit = bitDelay)
       val chkr = new UARTChecker(c.rx)
       val program = for {
-        _ <- cmds.sendReset(bitDelay)
+        _ <- cmds.sendReset()
         checkerHandle <- fork(chkr.checkByte(bitDelay), "checker")
-        _ <- cmds.sendByte(testByte, bitDelay)
+        _ <- cmds.sendByte(testByte)
         _ <- step(bitDelay*5)
         j <- join(checkerHandle)
       } yield j
@@ -58,8 +58,8 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
     val testByte = Seq(0x55)
     val bitDelay = 4
     test(new UARTMock(testByte, bitDelay)) { c =>
-      val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx)
-      val result = Command.unsafeRun(cmds.receiveByte(bitDelay), c.clock, print=false)
+      val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx, cyclesPerBit = bitDelay)
+      val result = Command.unsafeRun(cmds.receiveByte(), c.clock, print=false)
       assert(result.retval == testByte.head)
     }
   }
@@ -68,8 +68,8 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
     val testBytes = Seq(0x55, 0xff, 0x00, 0xaa)
     val bitDelay = 4
     test(new UARTMock(testBytes, bitDelay)).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
-      val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx)
-      val result = Command.unsafeRun(cmds.receiveBytes(bitDelay, testBytes.length), c.clock, print=false)
+      val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx, cyclesPerBit = bitDelay)
+      val result = Command.unsafeRun(cmds.receiveBytes(testBytes.length), c.clock, print=false)
       assert(result.retval == testBytes)
     }
   }
@@ -78,15 +78,15 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
     val testBytes = Seq(0x00, 0x00, 0x55, 0xff, 0x00, 0xaa)
     val bitDelay = 4
     test(new UARTLoopback()).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
-      val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx)
+      val cmds = new UARTCommands(uartIn = c.rx, uartOut = c.tx, cyclesPerBit = bitDelay)
       val rxChk = new UARTChecker(c.rx)
       val txChk = new UARTChecker(c.tx)
 
       val sender = for {
-        _ <- cmds.sendReset(bitDelay)
-        _ <- cmds.sendBytes(testBytes, bitDelay)
+        _ <- cmds.sendReset()
+        _ <- cmds.sendBytes(testBytes)
       } yield ()
-      val receiver = cmds.receiveBytes(testBytes.length, bitDelay)
+      val receiver = cmds.receiveBytes(testBytes.length)
       val rxChecker = rxChk.checkBytes(testBytes.length, bitDelay)
       val txChecker = txChk.checkBytes(testBytes.length, bitDelay)
 
@@ -104,7 +104,7 @@ class UARTCommandSpec extends AnyFlatSpec with ChiselScalatestTester {
 
       val result = Command.unsafeRun(program, c.clock, print=false)
       assert(result.retval._1 == testBytes)
-      assert(result.retval._2 == true)
+      assert(result.retval._2)
     }
   }
 }

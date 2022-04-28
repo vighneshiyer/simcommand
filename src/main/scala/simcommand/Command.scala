@@ -1,4 +1,4 @@
-package simapi
+package simcommand
 
 import chisel3._
 import chiseltest._

@@ -1,4 +1,4 @@
-package simapi
+package simcommand
 
 sealed trait Action
 case class StepAction(cycles: Int) extends Action
