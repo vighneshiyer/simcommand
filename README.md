@@ -158,7 +158,7 @@ def driver(nElems: Int, start: Int): Command[Unit] = {
     _ <- poke(dut.in, i.U)
     _ <- step(1)
   } yield ()
-  
+
   concat((start until start + nElems).map { i => driveOne(i) })
 }
 
@@ -167,7 +167,7 @@ def receiver(nElems: Int): Command[Seq[Int]] = {
     _ <- step(1)
     value <- peek(dut.out)
   } yield value.litValue.toInt
-  
+
   concat(Seq.fill(nElems)(receiveOne()))
 }
 ```
