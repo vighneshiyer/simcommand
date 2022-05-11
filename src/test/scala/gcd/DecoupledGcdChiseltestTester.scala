@@ -61,7 +61,7 @@ class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTeste
     val simName = backend.getSimulator.name
 
     val startElab = System.nanoTime()
-    test(new DecoupledGcd(bitWidth)).withAnnotations(Seq(backend, NoThreadingAnnotation)) { dut =>
+    test(new DecoupledGcd(bitWidth)).withAnnotations(Seq(backend, NoThreadingAnnotation, WriteVcdAnnotation)) { dut =>
       println(s"Took ${(System.nanoTime() - startElab) / 1e9d}s to elaborate, compile and create simulation w/ $simName")
       val startTest = System.nanoTime()
       val inputCmds = new DecoupledCommands(dut.input)
@@ -215,6 +215,10 @@ class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTeste
 
   it should "work with Command API and verilator" in {
     runWithCommandAPI(VerilatorBackendAnnotation)
+  }
+
+  it should "work with Command API and iverilog" in {
+    runWithCommandAPI(IcarusBackendAnnotation)
   }
 
   it should  "work with raw simulator and single threaded and treadle" in {
