@@ -20,5 +20,16 @@ mapping/meminit
 mapping/networkData_fp.json
 cocotb/testbench/sim_build
 __pycache__
-*.vcd
 results.xml
+
+a.out
+*.vcd
+*.ivl
+*.vcs
+csrc
+*.daidir
+ucli.key
+*.vpd
+*.fsdb
+novas_dump.log
+.nfs*

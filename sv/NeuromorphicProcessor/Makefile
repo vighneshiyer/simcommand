@@ -10,7 +10,7 @@ NeuromorphicProcessor.ivl: $(TB) $(DUT)
 	$(IVERILOG) -o $@ $^
 
 NeuromorphicProcessor.vcs: $(TB) $(DUT)
-	$(VCS) -o $@ $^
+	$(VCS) -debug_access -o $@ $^
 
 clean:
 	rm -f *.ivl
