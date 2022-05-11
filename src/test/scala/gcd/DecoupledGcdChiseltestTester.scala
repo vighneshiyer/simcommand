@@ -221,6 +221,10 @@ class DecoupledGcdChiseltestTester extends AnyFlatSpec with ChiselScalatestTeste
     runWithCommandAPI(IcarusBackendAnnotation)
   }
 
+  it should "work with Command API and VCS" in {
+    runWithCommandAPI(VcsBackendAnnotation)
+  }
+
   it should  "work with raw simulator and single threaded and treadle" in {
     runWithRawSimSingleThread(TreadleBackendAnnotation)
   }

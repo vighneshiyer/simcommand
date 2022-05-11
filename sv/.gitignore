@@ -1,3 +1,7 @@
 a.out
 *.vcd
-DecoupledGcd
+*.ivl
+*.vcs
+csrc
+*.daidir
+ucli.key
