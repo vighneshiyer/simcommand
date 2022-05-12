@@ -10,7 +10,12 @@ NeuromorphicProcessor.ivl: $(TB) $(DUT)
 	$(IVERILOG) -o $@ $^
 
 NeuromorphicProcessor.vcs: $(TB) $(DUT)
-	$(VCS) -debug_access -o $@ $^
+	#$(VCS) +define+RANDOMIZE_REG_INIT +define+RANDOMIZE_MEM_INIT -debug_access -o $@ $^
+	#$(VCS) +vcs+initreg+random -debug_access -o $@ $^
+	$(VCS) +vcs+initreg+random -o $@ $^
+
+run_vcs: NeuromorphicProcessor.vcs
+	./NeuromorphicProcessor.vcs +vcs+initreg+0
 
 clean:
 	rm -f *.ivl
@@ -18,4 +23,4 @@ clean:
 	rm -rf csrc *.daidir
 	rm -f *.vcd
 
-.PHONY: default clean
+.PHONY: default clean run_vcs

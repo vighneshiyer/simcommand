@@ -63,9 +63,9 @@ module NeuromorphicProcessor_tb();
     integer k;
     initial begin
         // $vcdpluson;
-        $fsdbDumpfile("dump.fsdb");
-        $fsdbDumpvars();
-        $fsdbDumpon;
+        //$fsdbDumpfile("dump.fsdb");
+        //$fsdbDumpvars();
+        //$fsdbDumpon;
 
         @(posedge clock);
         uartRx = 1'b1;
