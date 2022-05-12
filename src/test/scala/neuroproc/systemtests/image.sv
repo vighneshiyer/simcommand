@@ -1,4 +1,4 @@
-logic [7:0] image [484];
+logic [15:0] image [484];
 assign image[0] = 'd0;
 assign image[1] = 'd0;
 assign image[2] = 'd0;

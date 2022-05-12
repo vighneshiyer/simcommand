@@ -11,7 +11,7 @@ with open(image_file, 'r') as f:
     split = image.split(',')
     with open(sv_file, 'w') as sv:
         """
-        sv.write(f"logic [7:0] {name} [{len(split)}] = '{{\n")
+        sv.write(f"logic [15:0] {name} [{len(split)}] = '{{\n")
         for i, pixel in enumerate(split):
             if i == len(split) - 1:
                 sv.write(f"    'd{pixel}\n")
@@ -19,6 +19,6 @@ with open(image_file, 'r') as f:
                 sv.write(f"    'd{pixel},\n")
         sv.write("};")
         """
-        sv.write(f"logic [7:0] {name} [{len(split)}];\n")
+        sv.write(f"logic [15:0] {name} [{len(split)}];\n")
         for i, pixel in enumerate(split):
             sv.write(f"assign {name}[{i}] = 'd{pixel};\n")

@@ -1,4 +1,4 @@
-logic [7:0] results [108];
+logic [15:0] results [108];
 assign results[0] = 'd23;
 assign results[1] = 'd22;
 assign results[2] = 'd21;

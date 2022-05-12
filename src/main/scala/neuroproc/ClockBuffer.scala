@@ -36,11 +36,16 @@ class ClockBufferBB extends BlackBox with HasBlackBoxInline {
   |/* verilator lint_off UNOPTFLAT */
   |module ClockBufferBB(input I, input CE, output O);
   |  reg en_latched /*verilator clock_enable*/;
-  |  always_latch if (!I) en_latched = CE;
+  |  always @(*) begin
+  |    if (!I) begin
+  |       en_latched = CE;
+  |    end
+  |  end
   |  assign O = en_latched & I;
   |endmodule
   """.stripMargin)
 }
+  //|  always_latch if (!I) en_latched = CE;
 
 class ClockBufferVerilog extends ClockBuffer {
   val bb = Module(new ClockBufferBB)
